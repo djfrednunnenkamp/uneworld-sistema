@@ -71,7 +71,7 @@ def meta(request):
     u = request.user
     return Response({
         'methods': methods, 'categories': cats,
-        'statuses_receivable': ['previsto', 'vencido', 'recebido'],
+        'statuses_receivable': ['previsto', 'parcial', 'vencido', 'recebido'],
         'statuses_payable': ['previsto', 'vencido', 'sem_data'],
         'can': {
             'receivables': _can_tab(u, 'financeiro_receivables'),
@@ -83,83 +83,131 @@ def meta(request):
     })
 
 
-@api_view(['POST'])
-def settle_receivable(request, pk):
-    """Baixa da parcela: marca como RECEBIDA ou desfaz a baixa.
-
-    Corpo: {received: bool, date?: 'YYYY-MM-DD', value?: '1234.56', note?: str}
-    - received=true  → carimba received_at (padrão: hoje), quem baixou e, se
-      informados, o valor que entrou de fato e uma observação.
-    - received=false → limpa tudo; a parcela volta a ser previsão.
-
-    Ver o Financeiro não dá direito de mexer no dinheiro: além de
-    financeiro_view + financeiro_receivables (para chegar à tela), exige
-    `financeiro_settle`. Usuário de agência só alcança as próprias parcelas.
-    """
+def _parcela_do_usuario(request, pk):
+    """A parcela, já limitada ao que este usuário pode alcançar (escopo de agência)."""
     from contracts.models import ContractInstallment
+    qs = (ContractInstallment.objects.select_related('contract')
+          .filter(contract__is_deleted=False))
+    scope = agency_scope_ids(request.user)
+    if scope is not None:
+        qs = qs.filter(contract__agency_id__in=scope)
+    return get_object_or_404(qs, pk=pk)
 
+
+def _liquido(inst):
+    """Valor líquido previsto da parcela — é o teto do que pode ser recebido."""
+    return S.liquido_das_parcelas([inst])[inst.id][2]
+
+
+def _rotulo(inst):
+    c = inst.contract
+    nome = 'Entrada' if inst.kind == 'entrada' else f'Parcela {inst.installment_number or ""}'.strip()
+    return f'{nome} — contrato {c.reservation_number or c.id}'
+
+
+def _resumo(inst):
+    """Estado da parcela depois de mexer nos recebimentos (o front usa direto)."""
+    liquido = _liquido(inst)
+    pagamentos = list(inst.payments.select_related('created_by').order_by('paid_at', 'id'))
+    recebido = sum((Decimal(str(p.value_brl)) for p in pagamentos), Decimal('0'))
+    return {
+        'id': inst.id,
+        'received_real': bool(pagamentos),
+        'received_brl': str(recebido.quantize(S.CENT)),
+        'balance_brl': str((liquido - recebido).quantize(S.CENT)),
+        'value_brl': str(liquido.quantize(S.CENT)),
+        'status': S._rec_status(inst, liquido, recebido, S.today()),
+        'payments': [{
+            'id': p.id, 'paid_at': str(p.paid_at),
+            'value_brl': str(Decimal(str(p.value_brl)).quantize(S.CENT)),
+            'note': p.note or '',
+            'by': ((p.created_by.first_name or p.created_by.username) if p.created_by_id else None),
+        } for p in pagamentos],
+    }
+
+
+@api_view(['POST'])
+def add_receivable_payment(request, pk):
+    """Lança um RECEBIMENTO na parcela.
+
+    Corpo: {value?: '960,16', date?: 'AAAA-MM-DD', note?: str}
+    - `value` em branco = entrou o saldo inteiro (quita a parcela).
+    - `date` em branco = hoje.
+
+    A soma dos recebimentos NUNCA passa do líquido da parcela: receber mais do
+    que se cobrou não é recebimento, é outra coisa (e o excedente entraria como
+    dinheiro que a tela não sabe de onde veio). Pagar MENOS é normal — a parcela
+    fica "parcial" e o saldo continua a receber.
+
+    Ver o Financeiro não dá direito de mexer no dinheiro: exige `financeiro_settle`.
+    """
     if not _can_tab(request.user, 'financeiro_receivables'):
         return _deny()
     if not has_any_perm(request.user, 'financeiro_settle'):
         return Response({'detail': 'Você não tem permissão para dar baixa em parcelas.'}, status=403)
 
-    qs = ContractInstallment.objects.select_related('contract').filter(contract__is_deleted=False)
-    scope = agency_scope_ids(request.user)
-    if scope is not None:
-        qs = qs.filter(contract__agency_id__in=scope)
-    inst = get_object_or_404(qs, pk=pk)
+    from contracts.models import ContractInstallmentPayment
+    inst = _parcela_do_usuario(request, pk)
+    liquido = _liquido(inst)
+    ja = sum((Decimal(str(p.value_brl)) for p in inst.payments.all()), Decimal('0'))
+    saldo = liquido - ja
+    if saldo <= 0:
+        return Response({'error': 'Esta parcela já está totalmente recebida.'}, status=400)
 
-    received = bool(request.data.get('received'))
-    antes = str(inst.received_at) if inst.received_at else ''
-
-    if received:
-        data = (request.data.get('date') or '').strip()
-        if data:
-            from datetime import date as _date
-            try:
-                inst.received_at = _date.fromisoformat(data)
-            except ValueError:
-                return Response({'error': 'Data inválida (use AAAA-MM-DD).'}, status=400)
-        else:
-            inst.received_at = S.today()
-        valor = request.data.get('value')
-        if valor in (None, ''):
-            inst.received_value_brl = None
-        else:
-            try:
-                inst.received_value_brl = Decimal(str(valor).replace(',', '.'))
-            except (InvalidOperation, ValueError):
-                return Response({'error': 'Valor recebido inválido.'}, status=400)
-            if inst.received_value_brl < 0:
-                return Response({'error': 'O valor recebido não pode ser negativo.'}, status=400)
-        inst.received_note = (request.data.get('note') or '').strip()[:300]
-        inst.received_by = request.user
+    bruto = request.data.get('value')
+    if bruto in (None, ''):
+        valor = saldo
     else:
-        inst.received_at = None
-        inst.received_value_brl = None
-        inst.received_note = ''
-        inst.received_by = None
+        try:
+            valor = Decimal(str(bruto).replace('.', '').replace(',', '.')
+                            if ',' in str(bruto) else str(bruto))
+        except (InvalidOperation, ValueError):
+            return Response({'error': 'Valor recebido inválido.'}, status=400)
+    valor = valor.quantize(S.CENT)
+    if valor <= 0:
+        return Response({'error': 'O valor recebido precisa ser maior que zero.'}, status=400)
+    if valor > saldo:
+        return Response({'error': (f'O valor não pode passar do que falta receber nesta parcela '
+                                   f'(R$ {saldo.quantize(S.CENT)}).')}, status=400)
 
-    inst.save(update_fields=['received_at', 'received_value_brl', 'received_note', 'received_by'])
+    data = (request.data.get('date') or '').strip()
+    if data:
+        from datetime import date as _date
+        try:
+            quando = _date.fromisoformat(data)
+        except ValueError:
+            return Response({'error': 'Data inválida (use AAAA-MM-DD).'}, status=400)
+    else:
+        quando = S.today()
 
-    c = inst.contract
-    rotulo = 'Entrada' if inst.kind == 'entrada' else f'Parcela {inst.installment_number or ""}'.strip()
-    log_event('update', model_name='ContractInstallment', model_label='Parcela do contrato',
-              object_id=inst.id,
-              object_repr=f'{rotulo} — contrato {c.reservation_number or c.id}',
-              changes={'baixa': {
-                  'de': antes or 'não recebida',
-                  'para': str(inst.received_at) if inst.received_at else 'não recebida',
-                  'valor': str(inst.received_value_brl) if inst.received_value_brl is not None else '',
-                  'observacao': inst.received_note,
+    pg = ContractInstallmentPayment.objects.create(
+        installment=inst, paid_at=quando, value_brl=valor,
+        note=(request.data.get('note') or '').strip()[:300], created_by=request.user)
+
+    log_event('create', model_name='ContractInstallmentPayment', model_label='Recebimento de parcela',
+              object_id=pg.id, object_repr=_rotulo(inst),
+              changes={'recebimento': {
+                  'valor': str(valor), 'data': str(quando),
+                  'observacao': pg.note,
+                  'restante': str((saldo - valor).quantize(S.CENT)),
               }},
               user=request.user)
+    return Response(_resumo(inst))
 
-    return Response({
-        'id': inst.id,
-        'received_real': bool(inst.received_at),
-        'received_at': str(inst.received_at) if inst.received_at else None,
-        'received_value_brl': str(inst.received_value_brl) if inst.received_value_brl is not None else None,
-        'received_note': inst.received_note,
-        'received_by': (request.user.first_name or request.user.username) if inst.received_at else None,
-    })
+
+@api_view(['DELETE'])
+def delete_receivable_payment(request, pk, payment_id):
+    """Apaga um recebimento — o valor volta a ser saldo a receber."""
+    if not _can_tab(request.user, 'financeiro_receivables'):
+        return _deny()
+    if not has_any_perm(request.user, 'financeiro_settle'):
+        return Response({'detail': 'Você não tem permissão para dar baixa em parcelas.'}, status=403)
+
+    inst = _parcela_do_usuario(request, pk)
+    pg = get_object_or_404(inst.payments, pk=payment_id)
+    dados = {'valor': str(pg.value_brl), 'data': str(pg.paid_at), 'observacao': pg.note}
+    pg.delete()
+    log_event('delete', model_name='ContractInstallmentPayment', model_label='Recebimento de parcela',
+              object_id=payment_id, object_repr=_rotulo(inst),
+              changes={'recebimento_apagado': dados}, user=request.user)
+    return Response(_resumo(inst))

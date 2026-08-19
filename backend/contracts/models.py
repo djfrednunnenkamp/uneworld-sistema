@@ -1,5 +1,6 @@
 import os
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
@@ -279,23 +280,43 @@ class ContractInstallment(models.Model):
     payment_method     = models.CharField('Forma de pagamento', max_length=100, blank=True)
     order              = models.PositiveIntegerField('Ordem', default=0)
 
-    # ── Baixa (recebimento de verdade) ────────────────────────────────────────
-    # Enquanto `received_at` for nulo a parcela é PREVISÃO. Preenchido, ela é
-    # dinheiro que entrou: é o único carimbo que o Financeiro aceita como
-    # "recebido" de fato (antes disso ele só sabia aproximar pelo estágio
-    # "faturado" do contrato, que é o contrato inteiro, não a parcela).
-    received_at        = models.DateField('Recebido em', null=True, blank=True)
-    # Quanto entrou de verdade. Em branco = entrou o valor previsto (líquido).
-    # Existe para o caso comum de a adquirente depositar um valor diferente do
-    # estimado — a taxa real só se conhece no extrato.
-    received_value_brl = models.DecimalField('Valor recebido (BRL)', max_digits=12, decimal_places=2,
-                                             null=True, blank=True)
-    received_note      = models.CharField('Observação da baixa', max_length=300, blank=True)
-    received_by        = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
-                                           related_name='installments_received', verbose_name='Baixado por')
-
     class Meta:
         ordering = ['order']
+
+    # ── Recebimento (baixa) ───────────────────────────────────────────────────
+    # A parcela não guarda "recebida sim/não": guarda RECEBIMENTOS
+    # (ContractInstallmentPayment). Assim o caso real de pagar metade agora e o
+    # resto depois cabe sem gambiarra, e o saldo continua sendo dinheiro a
+    # receber. Mesmo desenho do "Custo real" dos roteiros (ItineraryCostPayment).
+
+    def total_recebido(self):
+        "Soma dos recebimentos lançados nesta parcela (BRL)."
+        return sum((p.value_brl for p in self.payments.all()), Decimal('0'))
+
+
+class ContractInstallmentPayment(models.Model):
+    """Recebimento REAL de uma parcela — quanto entrou, quando e por quem.
+
+    Uma parcela pode ter vários: o cliente paga metade hoje e o resto na semana
+    que vem. Enquanto a soma for menor que o valor da parcela, a diferença
+    continua sendo dinheiro a receber. A soma NUNCA pode passar do valor da
+    parcela (isso seria um recebimento que não corresponde a nada devido) — quem
+    cobra essa regra é a view, que conhece o valor líquido."""
+    installment = models.ForeignKey(ContractInstallment, on_delete=models.CASCADE, related_name='payments')
+    paid_at     = models.DateField('Recebido em')
+    value_brl   = models.DecimalField('Valor recebido (BRL)', max_digits=12, decimal_places=2)
+    note        = models.CharField('Observação', max_length=300, blank=True, default='')
+    created_at  = models.DateTimeField(auto_now_add=True)
+    created_by  = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='installment_payments_created', verbose_name='Lançado por')
+
+    class Meta:
+        ordering = ['paid_at', 'id']
+        verbose_name = 'Recebimento de parcela'
+        verbose_name_plural = 'Recebimentos de parcela'
+
+    def __str__(self):
+        return f'R$ {self.value_brl} em {self.paid_at} (parcela {self.installment_id})'
 
 
 class ContractAdjustment(models.Model):

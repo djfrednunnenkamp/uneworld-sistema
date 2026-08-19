@@ -467,11 +467,32 @@ class ContractSerializer(serializers.ModelSerializer):
                 for i, row in enumerate(guests)
             ])
         if installments is not None:
-            contract.installments.all().delete()
-            ContractInstallment.objects.bulk_create([
-                ContractInstallment(contract=contract, order=i, **row)
-                for i, row in enumerate(installments)
-            ])
+            # As parcelas NÃO podem ser apagadas e recriadas como os outros
+            # filhos: elas carregam os RECEBIMENTOS (baixa do Financeiro), e um
+            # delete levaria o dinheiro já baixado junto, em silêncio. Então
+            # atualizamos as existentes na mesma ordem, criamos o que falta e só
+            # apagamos a sobra — recusando apagar uma parcela que já recebeu.
+            atuais = list(contract.installments.order_by('order', 'id'))
+            for i, row in enumerate(installments):
+                if i < len(atuais):
+                    inst = atuais[i]
+                    for campo, valor in row.items():
+                        setattr(inst, campo, valor)
+                    inst.order = i
+                    inst.save()
+                else:
+                    ContractInstallment.objects.create(contract=contract, order=i, **row)
+            sobra = atuais[len(installments):]
+            com_recebimento = [x for x in sobra if x.payments.exists()]
+            if com_recebimento:
+                rotulos = ', '.join(
+                    'Entrada' if x.kind == 'entrada' else f'Parcela {x.installment_number or ""}'.strip()
+                    for x in com_recebimento)
+                raise serializers.ValidationError({'installments': (
+                    f'Não dá para remover {rotulos}: já há recebimento registrado nessa(s) parcela(s). '
+                    'Desfaça a baixa no Financeiro antes de reduzir o parcelamento.')})
+            for x in sobra:
+                x.delete()
 
         # Cláusulas do contrato: exatamente o que foi enviado. As "padrão"
         # (is_default) já vêm PRÉ-MARCADAS no formulário/roteiro, mas podem ser

@@ -165,26 +165,36 @@ def liquido_das_parcelas(rows):
     return saida
 
 
-def _rec_status(inst, t):
-    """'recebido' | 'vencido' | 'previsto'.
+def recebido_das_parcelas(rows):
+    """{id da parcela: (total recebido, [recebimentos])} — uma consulta só."""
+    from contracts.models import ContractInstallmentPayment
+    saida = defaultdict(lambda: [Decimal('0'), []])
+    qs = (ContractInstallmentPayment.objects
+          .filter(installment_id__in=[i.id for i in rows])
+          .select_related('created_by').order_by('paid_at', 'id'))
+    for p in qs:
+        alvo = saida[p.installment_id]
+        alvo[0] += _d(p.value_brl)
+        alvo[1].append(p)
+    return saida
 
-    A BAIXA manda: parcela com `received_at` é recebida, ponto. Sem baixa,
+
+def _rec_status(inst, liquido, recebido, t):
+    """'recebido' | 'parcial' | 'vencido' | 'previsto'.
+
+    Manda o que ENTROU: quitou a parcela, é recebida; entrou parte, é parcial
+    (e o saldo continua sendo dinheiro a receber). Sem recebimento nenhum,
     continua valendo a velha aproximação pelo estágio "faturado" do contrato —
-    ela existe porque a baixa é nova e o histórico não tem carimbo nenhum; o
+    ela existe porque a baixa é nova e o histórico não tem lançamento algum; o
     campo `received_real` no detalhe diz qual dos dois respondeu.
     """
-    if inst.received_at:
-        return 'recebido'
+    if recebido > 0:
+        return 'recebido' if recebido >= liquido - CENT else 'parcial'
     if inst.contract.stage == 'faturado':
         return 'recebido'
     if inst.due_date and inst.due_date < t:
         return 'vencido'
     return 'previsto'
-
-
-def valor_recebido(inst, liquido_previsto):
-    "O que entrou de fato: o valor da baixa quando informado, senão o previsto."
-    return _d(inst.received_value_brl) if inst.received_value_brl is not None else liquido_previsto
 
 
 def receivables_report(user, f, limit=300, can_past=True):
@@ -194,6 +204,7 @@ def receivables_report(user, f, limit=300, can_past=True):
     method_of = lambda i: (i.payment_method or i.contract.payment_type or '—')
     # Cartão: o que entra em caixa é o valor MENOS a taxa da adquirente.
     liquidos = liquido_das_parcelas(rows)
+    recebimentos = recebido_das_parcelas(rows)
     cards = {k: Decimal('0') for k in ('hoje', 'd7', 'mes', 'prox_mes', 'ano', 'recebido_mes', 'pendente', 'vencido',
                                       'taxas', 'bruto')}
     by_month = defaultdict(lambda: {'previsto': Decimal('0'), 'recebido': Decimal('0'), 'vencido': Decimal('0')})
@@ -206,33 +217,48 @@ def receivables_report(user, f, limit=300, can_past=True):
     for inst in rows:
         bruto, fee, v, pct, gateway = liquidos[inst.id]
         # `v` é o LÍQUIDO: daqui para baixo, todo total do financeiro usa ele.
-        st = _rec_status(inst, t)
+        recebido, pagamentos = recebimentos[inst.id]
+        recebido = min(recebido, v)          # a view impede passar; aqui é cinto e suspensório
+        saldo = v - recebido                 # o que AINDA falta entrar desta parcela
+        st = _rec_status(inst, v, recebido, t)
         cards['taxas'] += fee
         cards['bruto'] += bruto
         mkey = inst.due_date.strftime('%Y-%m')
-        by_month[mkey][st if st != 'recebido' else 'recebido'] += v
+        # No gráfico, a parcela paga pela metade aparece dos DOIS lados: a parte
+        # que entrou como recebida, a que falta como previsto/vencido.
+        if st == 'recebido':
+            by_month[mkey]['recebido'] += v
+        elif st == 'parcial':
+            by_month[mkey]['recebido'] += recebido
+            by_month[mkey]['vencido' if (inst.due_date and inst.due_date < t) else 'previsto'] += saldo
+        else:
+            by_month[mkey][st] += v
         by_method[method_of(inst)]['brl'] += v
         by_method[method_of(inst)]['count'] += 1
+        # O que entrou conta no mês em que ENTROU (data do recebimento), não no
+        # do vencimento — é quando o dinheiro apareceu na conta.
+        for pg in pagamentos:
+            if pg.paid_at.strftime('%Y-%m') == t.strftime('%Y-%m'):
+                cards['recebido_mes'] += _d(pg.value_brl)
         if st == 'recebido':
-            # Com baixa, o mês do dinheiro é o da BAIXA (foi quando entrou), não
-            # o do vencimento; e o valor é o que entrou de fato.
-            quando = inst.received_at or inst.due_date
-            if quando.strftime('%Y-%m') == t.strftime('%Y-%m'):
-                cards['recebido_mes'] += valor_recebido(inst, v)
+            if not pagamentos:   # recebida só pela aproximação do estágio faturado
+                if inst.due_date.strftime('%Y-%m') == t.strftime('%Y-%m'):
+                    cards['recebido_mes'] += v
         else:
-            cards['pendente'] += v
-            if st == 'vencido':
-                cards['vencido'] += v
+            # Parcial: o que pesa nos cards de "a receber" é só o SALDO.
+            cards['pendente'] += saldo
+            if st in ('vencido',) or (st == 'parcial' and inst.due_date < t):
+                cards['vencido'] += saldo
             if inst.due_date == t:
-                cards['hoje'] += v
+                cards['hoje'] += saldo
             if t <= inst.due_date <= t + timedelta(days=7):
-                cards['d7'] += v
+                cards['d7'] += saldo
             if mes_ini <= inst.due_date < prox_mes:
-                cards['mes'] += v
+                cards['mes'] += saldo
             if prox_mes <= inst.due_date < fim_prox:
-                cards['prox_mes'] += v
+                cards['prox_mes'] += saldo
             if inst.due_date <= fim_ano and inst.due_date >= t:
-                cards['ano'] += v
+                cards['ano'] += saldo
         if len(detail) < limit:
             c = inst.contract
             detail.append({
@@ -251,15 +277,17 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'fee_brl': str(fee) if pct is not None else None,
                 'gross_brl': str(bruto.quantize(CENT)),
                 'detail_text': inst.detail or '',
-                # Baixa: `received_real` separa o carimbo de verdade da
-                # aproximação pelo estágio do contrato.
-                'received_real': bool(inst.received_at),
-                'received_at': str(inst.received_at) if inst.received_at else None,
-                'received_value_brl': (str(_d(inst.received_value_brl).quantize(CENT))
-                                       if inst.received_value_brl is not None else None),
-                'received_note': inst.received_note or '',
-                'received_by': ((inst.received_by.first_name or inst.received_by.username)
-                                if inst.received_by_id else None),
+                # Recebimentos: `received_real` separa o dinheiro lançado de
+                # verdade da aproximação pelo estágio do contrato.
+                'received_real': bool(pagamentos),
+                'received_brl': str(recebido.quantize(CENT)),
+                'balance_brl': str(saldo.quantize(CENT)),
+                'payments': [{
+                    'id': pg.id, 'paid_at': str(pg.paid_at),
+                    'value_brl': str(_d(pg.value_brl).quantize(CENT)),
+                    'note': pg.note or '',
+                    'by': ((pg.created_by.first_name or pg.created_by.username) if pg.created_by_id else None),
+                } for pg in pagamentos],
             })
     # Quanto há em cada etapa, ignorando o filtro de etapa — é o que permite à
     # tela dizer o tamanho do que está de fora antes de a pessoa clicar.
@@ -292,8 +320,9 @@ def receivables_report(user, f, limit=300, can_past=True):
                          'que é o que de fato entra na conta.'),
         'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
                        'a bandeira só se sabe quando o cliente passa o cartão.'),
-        'note_realizado': ('Recebido é a parcela com BAIXA (data de recebimento). Sem baixa, ainda vale '
-                           'a aproximação antiga pelo estágio "faturado" do contrato.'),
+        'note_realizado': ('Recebido é o que foi LANÇADO na parcela (data e valor). Pagamento parcial deixa a '
+                           'parcela como "parcial" e o saldo segue como dinheiro a receber. Sem lançamento '
+                           'nenhum, ainda vale a aproximação antiga pelo estágio "faturado" do contrato.'),
     }
 
 

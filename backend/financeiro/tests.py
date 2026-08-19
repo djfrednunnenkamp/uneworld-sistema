@@ -352,8 +352,9 @@ class EtapaDoContratoNosRecebiveisTest(TestCase):
         self.assertEqual(self.total({'stages': ['em_edicao'], 'from_stage': 'assinado'}), Decimal('90'))
 
 
-class SettleReceivableTest(APITestCase):
-    """Baixa da parcela: é ela que define 'recebido' de verdade."""
+class InstallmentPaymentsTest(APITestCase):
+    """Recebimento da parcela: quita inteira, quita metade (fica saldo) e nunca
+    aceita mais do que a parcela vale."""
 
     def setUp(self):
         S.clear_rate_cache()
@@ -365,70 +366,123 @@ class SettleReceivableTest(APITestCase):
         self.inst = ContractInstallment.objects.create(
             contract=self.c, kind='entrada', due_date=self.today,
             value_brl=Decimal('1000'), payment_method='Pix')
-        self.url = f'/api/financeiro/receivables/{self.inst.id}/settle/'
+        self.url = f'/api/financeiro/receivables/{self.inst.id}/payments/'
 
     def _user(self, name, **perms):
         return make_user(name, financeiro_view=True, financeiro_receivables=True, **perms)
 
-    def test_settle_requires_permission(self):
-        self.client.force_authenticate(self._user('semsettle'))   # vê, mas não baixa
-        r = self.client.post(self.url, {'received': True}, format='json')
-        self.assertEqual(r.status_code, 403)
-        self.inst.refresh_from_db()
-        self.assertIsNone(self.inst.received_at)
+    def _rep(self, nome):
+        return S.receivables_report(make_user(nome, superuser=True), {})
 
-    def test_settle_marks_received_and_undo(self):
+    def test_requires_permission(self):
+        self.client.force_authenticate(self._user('semsettle'))   # vê, mas não baixa
+        r = self.client.post(self.url, {}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.inst.payments.count(), 0)
+
+    def test_full_payment_settles_the_installment(self):
         u = self._user('baixador', financeiro_settle=True)
         self.client.force_authenticate(u)
-        r = self.client.post(self.url, {'received': True, 'note': 'Pix caiu'}, format='json')
+        r = self.client.post(self.url, {'note': 'Pix caiu'}, format='json')   # sem valor = saldo inteiro
         self.assertEqual(r.status_code, 200)
-        self.inst.refresh_from_db()
-        self.assertEqual(self.inst.received_at, self.today)
-        self.assertEqual(self.inst.received_by_id, u.id)
-        self.assertEqual(self.inst.received_note, 'Pix caiu')
-        # a parcela some do "pendente" e entra no recebido do mês
-        rep = S.receivables_report(make_user('leitor', superuser=True), {})
+        self.assertEqual(r.data['status'], 'recebido')
+        self.assertEqual(Decimal(r.data['received_brl']), Decimal('1000.00'))
+        self.assertEqual(Decimal(r.data['balance_brl']), Decimal('0.00'))
+        pg = self.inst.payments.get()
+        self.assertEqual(pg.paid_at, self.today)
+        self.assertEqual(pg.created_by_id, u.id)
+        rep = self._rep('leitor')
         self.assertEqual(Decimal(rep['cards']['pendente']), Decimal('0.00'))
-        self.assertEqual(rep['detail'][0]['received_real'], True)
-        # desfazer volta tudo ao previsto
-        r = self.client.post(self.url, {'received': False}, format='json')
-        self.assertEqual(r.status_code, 200)
-        self.inst.refresh_from_db()
-        self.assertIsNone(self.inst.received_at)
-        self.assertEqual(self.inst.received_note, '')
-        rep = S.receivables_report(make_user('leitor2', superuser=True), {})
-        self.assertEqual(Decimal(rep['cards']['pendente']), Decimal('1000.00'))
+        self.assertEqual(Decimal(rep['cards']['recebido_mes']), Decimal('1000.00'))
 
-    def test_settle_with_different_value_counts_what_entered(self):
-        """A adquirente depositou menos do que o previsto: vale o extrato."""
+    def test_half_payment_keeps_the_rest_as_receivable(self):
+        """O caso do Fred: o cliente pagou metade. O resto continua a receber."""
         self.client.force_authenticate(self._user('baixador2', financeiro_settle=True))
-        r = self.client.post(self.url, {'received': True, 'value': '950,40'}, format='json')
+        r = self.client.post(self.url, {'value': '400'}, format='json')
         self.assertEqual(r.status_code, 200)
-        self.inst.refresh_from_db()
-        self.assertEqual(self.inst.received_value_brl, Decimal('950.40'))
-        rep = S.receivables_report(make_user('leitor3', superuser=True), {})
-        self.assertEqual(Decimal(rep['cards']['recebido_mes']), Decimal('950.40'))
+        self.assertEqual(r.data['status'], 'parcial')
+        self.assertEqual(Decimal(r.data['balance_brl']), Decimal('600.00'))
+        rep = self._rep('leitor2')
+        linha = rep['detail'][0]
+        self.assertEqual(linha['status'], 'parcial')
+        self.assertEqual(Decimal(linha['balance_brl']), Decimal('600.00'))
+        # nos cards, só o SALDO continua pendente; o que entrou vira recebido
+        self.assertEqual(Decimal(rep['cards']['pendente']), Decimal('600.00'))
+        self.assertEqual(Decimal(rep['cards']['recebido_mes']), Decimal('400.00'))
+        # e o segundo pagamento fecha a conta
+        r = self.client.post(self.url, {'value': '600'}, format='json')
+        self.assertEqual(r.data['status'], 'recebido')
+        self.assertEqual(self.inst.payments.count(), 2)
+        self.assertEqual(Decimal(self._rep('leitor3')['cards']['pendente']), Decimal('0.00'))
 
-    def test_settle_rejects_bad_input(self):
+    def test_never_more_than_the_installment(self):
         self.client.force_authenticate(self._user('baixador3', financeiro_settle=True))
-        self.assertEqual(self.client.post(self.url, {'received': True, 'date': '31/02/2026'}, format='json').status_code, 400)
-        self.assertEqual(self.client.post(self.url, {'received': True, 'value': 'abc'}, format='json').status_code, 400)
-        self.assertEqual(self.client.post(self.url, {'received': True, 'value': '-5'}, format='json').status_code, 400)
-        self.inst.refresh_from_db()
-        self.assertIsNone(self.inst.received_at)
+        r = self.client.post(self.url, {'value': '1000.01'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('não pode passar', r.data['error'])
+        self.client.post(self.url, {'value': '900'}, format='json')
+        # sobrando 100, um lançamento de 200 também é recusado
+        r = self.client.post(self.url, {'value': '200'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.inst.payments.count(), 1)
 
-    def test_agency_user_cannot_settle_other_agency(self):
+    def test_rejects_bad_input(self):
+        self.client.force_authenticate(self._user('baixador4', financeiro_settle=True))
+        self.assertEqual(self.client.post(self.url, {'date': '31/02/2026'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(self.url, {'value': 'abc'}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(self.url, {'value': '0'}, format='json').status_code, 400)
+        self.assertEqual(self.inst.payments.count(), 0)
+
+    def test_delete_payment_returns_the_balance(self):
+        self.client.force_authenticate(self._user('baixador5', financeiro_settle=True))
+        r = self.client.post(self.url, {'value': '400'}, format='json')
+        pid = r.data['payments'][0]['id']
+        r = self.client.delete(f'{self.url}{pid}/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['status'], 'previsto')
+        self.assertEqual(Decimal(r.data['balance_brl']), Decimal('1000.00'))
+        self.assertEqual(self.inst.payments.count(), 0)
+
+    def test_agency_user_cannot_touch_other_agency(self):
         outra = Agency.objects.create(name='OutraBaixa')
         u = make_user('agdeoutra', agency=outra, financeiro_view=True,
                       financeiro_receivables=True, financeiro_settle=True)
         self.client.force_authenticate(u)
-        r = self.client.post(self.url, {'received': True}, format='json')
+        r = self.client.post(self.url, {}, format='json')
         self.assertEqual(r.status_code, 404)
-        self.inst.refresh_from_db()
-        self.assertIsNone(self.inst.received_at)
+        self.assertEqual(self.inst.payments.count(), 0)
 
-    def test_settle_is_audited(self):
+    def test_payment_is_audited(self):
         from audit.models import AuditLog
-        self.client.force_authenticate(self._user('baixador4', financeiro_settle=True))
-        self.client.post(self.url, {'received': True}, format='json')
-        self.assertTrue(AuditLog.objects.filter(model_name='ContractInstallment').exists())
+        self.client.force_authenticate(self._user('baixador6', financeiro_settle=True))
+        self.client.post(self.url, {}, format='json')
+        self.assertTrue(AuditLog.objects.filter(model_name='ContractInstallmentPayment').exists())
+
+    def test_editing_contract_keeps_the_money(self):
+        """Salvar o contrato reescrevia as parcelas — e levaria a baixa junto."""
+        from contracts.serializers import ContractSerializer
+        self.client.force_authenticate(self._user('baixador7', financeiro_settle=True))
+        self.client.post(self.url, {'value': '400'}, format='json')
+        ser = ContractSerializer(self.c, data={'installments': [
+            {'kind': 'entrada', 'due_date': str(self.today), 'value_brl': '1000', 'payment_method': 'Pix'},
+            {'kind': 'parcela', 'installment_number': 1, 'due_date': str(self.today), 'value_brl': '500'},
+        ]}, partial=True)
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        self.inst.refresh_from_db()
+        self.assertEqual(self.inst.payments.count(), 1)   # o recebimento sobreviveu
+
+    def test_cannot_drop_an_installment_that_already_received(self):
+        from rest_framework.exceptions import ValidationError
+        from contracts.serializers import ContractSerializer
+        ContractInstallment.objects.create(contract=self.c, kind='parcela', installment_number=1,
+                                           due_date=self.today, value_brl=Decimal('500'))
+        self.client.force_authenticate(self._user('baixador8', financeiro_settle=True))
+        alvo = self.c.installments.order_by('order', 'id').last()
+        self.client.post(f'/api/financeiro/receivables/{alvo.id}/payments/', {'value': '100'}, format='json')
+        ser = ContractSerializer(self.c, data={'installments': [
+            {'kind': 'entrada', 'due_date': str(self.today), 'value_brl': '1000', 'payment_method': 'Pix'},
+        ]}, partial=True)
+        ser.is_valid(raise_exception=True)
+        with self.assertRaises(ValidationError):
+            ser.save()
