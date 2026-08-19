@@ -28,6 +28,8 @@ PERMISSION_FIELDS = [
     'agencies_view',
     'agencies_edit',
     'agencies_delete',
+    'agencies_import',
+    'agencies_export',
     'agencies_view_logs',
     # Fornecedores
     'fornecedores_view',

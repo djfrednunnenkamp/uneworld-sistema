@@ -211,3 +211,116 @@ class PromoterTransferTest(APITestCase):
         r = self.client.post('/api/agencies/transfer-promoter/',
                              {'target_id': self.p_in.id, 'agency_ids': [self.a_rj.id]}, format='json')
         self.assertEqual(r.status_code, 403)
+
+
+# ── Importação/Exportação CSV (mesmo fluxo dos fornecedores) ──────────────────
+VALID_CNPJ = '11222333000181'
+
+
+def _import_csv(rows, header=('Nome;Razão Social;Email;CNPJ;CPF;Comissão;Ativo?;'
+                              'Cidade;Estado;Promotor;Unidade Categoria'), bom=True):
+    text = header + '\n' + '\n'.join(rows) + '\n'
+    data = text.encode('utf-8')
+    if bom:
+        data = b'\xef\xbb\xbf' + data
+    return data
+
+
+class AgencyCsvImportTest(APITestCase):
+    def setUp(self):
+        self.importer = _make_user('imp', agencies_view=True, agencies_import=True)
+        self.viewer = _make_user('vw', agencies_view=True)
+        self.promoter = _make_user('luciano', agencies_view=True, is_promoter=True)
+        self.promoter.first_name = 'Luciano'; self.promoter.save()
+
+    def _analyze(self, data, name='agencias.csv'):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile(name, data, content_type='text/csv')
+        return self.client.post('/api/agencies/import/analyze/', {'file': f}, format='multipart')
+
+    def test_import_requires_permission(self):
+        self.client.force_authenticate(self.viewer)
+        r = self._analyze(_import_csv(['A;A Ltda;a@x.com;;;12%;Sim;POA;RS;;'])) 
+        self.assertEqual(r.status_code, 403)
+
+    def test_analyze_infotravel_format(self):
+        self.client.force_authenticate(self.importer)
+        rows = [
+            f'Ag Um;Um Ltda;um@x.com;{VALID_CNPJ};;12%;Sim;Porto Alegre;RS;Luciano - Promotor;AGÊNCIAS',
+            'Ag Dois;Dois Ltda;dois@x.com;1,85299E+13;;13%;Sim;Canoas;RS;;Desativado',
+            ';;;semnome@x.com;;;Sim;;;;',
+        ]
+        r = self._analyze(_import_csv(rows))
+        self.assertEqual(r.status_code, 200)
+        out = {x['line']: x for x in r.data['rows']}
+        self.assertEqual(r.data['summary']['total'], 3)
+        # linha 2: promotor resolvido, comissão 12, ativa
+        n = out[2]['normalized']
+        self.assertEqual(out[2]['action'], 'new')
+        self.assertEqual(n['cnpj'], VALID_CNPJ)
+        self.assertEqual(n['commission_rate'], '12')
+        self.assertEqual(n['promoter_id'], self.promoter.id)
+        self.assertEqual(n['status'], 'active')
+        # linha 3: CNPJ corrompido vira aviso (não erro); Desativado → inativa
+        self.assertEqual(out[3]['action'], 'new')
+        self.assertEqual(out[3]['normalized']['cnpj'], '')
+        self.assertEqual(out[3]['normalized']['status'], 'inactive')
+        self.assertTrue(any('notação científica' in w for w in out[3]['warnings']))
+        # linha 4: sem nome/razão → erro
+        self.assertEqual(out[4]['action'], 'error')
+
+    def test_apply_upsert_updates_by_cnpj(self):
+        self.client.force_authenticate(self.importer)
+        Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ, email='old@x.com')
+        rows = [f'Ag Um Novo;Um Ltda;novo@x.com;{VALID_CNPJ};;14%;Sim;POA;RS;;']
+        data = _import_csv(rows)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('a.csv', data, content_type='text/csv')
+        r = self.client.post('/api/agencies/import/apply/', {'file': f, 'mode': 'upsert'},
+                             format='multipart')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['updated'], 1)
+        self.assertEqual(r.data['created'], 0)
+        a = Agency.objects.get(cnpj=VALID_CNPJ)
+        self.assertEqual(a.name, 'Ag Um Novo')
+        self.assertEqual(a.email, 'novo@x.com')
+        self.assertEqual(str(a.commission_rate), '14.00')
+
+    def test_apply_create_skips_existing(self):
+        self.client.force_authenticate(self.importer)
+        Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ)
+        rows = [f'Ag Um;Um Ltda;;{VALID_CNPJ};;12%;Sim;POA;RS;;',
+                'Ag Nova;Nova Ltda;nova@x.com;;;12%;Sim;POA;RS;;']
+        data = _import_csv(rows)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('a.csv', data, content_type='text/csv')
+        r = self.client.post('/api/agencies/import/apply/', {'file': f, 'mode': 'create'},
+                             format='multipart')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['created'], 1)
+        self.assertEqual(r.data['skipped'], 1)
+        self.assertEqual(Agency.objects.count(), 2)
+
+    def test_export_requires_permission_and_roundtrips(self):
+        Agency.objects.create(name='Ag Um', cnpj=VALID_CNPJ, email='um@x.com',
+                              city='Porto Alegre', state='RS')
+        self.client.force_authenticate(self.importer)   # sem agencies_export
+        self.assertEqual(self.client.get('/api/agencies/export/').status_code, 403)
+        exporter = _make_user('exp', agencies_view=True, agencies_export=True,
+                              agencies_import=True)
+        self.client.force_authenticate(exporter)
+        r = self.client.get('/api/agencies/export/')
+        self.assertEqual(r.status_code, 200)
+        text = r.content.decode('utf-8-sig')
+        self.assertIn('Nome Fantasia', text.splitlines()[0])
+        self.assertIn('Ag Um', text)
+        # o export é reimportável pela análise
+        r2 = self._analyze(r.content, name='export.csv')
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.data['rows'][0]['action'], 'update')   # casa por CNPJ
+
+    def test_template_available_to_viewer(self):
+        self.client.force_authenticate(self.viewer)
+        r = self.client.get('/api/agencies/template/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('Nome Fantasia', r.content.decode('utf-8-sig'))

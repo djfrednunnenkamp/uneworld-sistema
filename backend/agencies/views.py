@@ -1,16 +1,25 @@
+import csv
+import io
 import re
 from django.contrib.auth.models import User
+from django.http import HttpResponse
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from audit.tracking import log_event
 from core.pagination import StandardResultsPagination
 from core.soft_delete import SoftDeleteViewSetMixin
 from core.merge import MergeViewSetMixin
 from users_api.permissions import RequirePermission
 from .models import Agency, AgencyMember
 from .serializers import AgencySerializer, AgencyListSerializer
+from .importer import (
+    parse_csv_bytes, analyze_rows, apply_rows, ImportError_,
+    CANON_COLUMNS, STATUS_LABELS,
+)
+from fornecedores.normalize import format_cpf, format_cnpj, only_digits
 from core.search import AccentInsensitiveSearchFilter
 from core.file_cleanup import delete_fieldfile
 
@@ -99,6 +108,12 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             # Admin da agência OU operadora — o gate fino é feito dentro da action.
             from rest_framework.permissions import IsAuthenticated
             return [IsAuthenticated()]
+        if self.action in ('import_analyze', 'import_apply'):
+            return [RequirePermission('agencies_import')()]
+        if self.action == 'export':
+            return [RequirePermission('agencies_export')()]
+        if self.action == 'template':
+            return [RequirePermission('agencies_import', *VIEW_PERMS)()]
         return super().get_permissions()
 
     @action(detail=True, methods=['patch'], url_path='autentique-config')
@@ -294,6 +309,144 @@ class AgencyViewSet(SoftDeleteViewSetMixin, MergeViewSetMixin, viewsets.ModelVie
             name = agency.company_name or agency.name or f'Agência #{agency.pk}'
             return Response({'exists': True, 'id': agency.id, 'name': name})
         return Response({'exists': False})
+
+    # ── Importação/Exportação CSV — mesmo fluxo dos fornecedores ─────────────
+
+    @action(detail=False, methods=['post'], url_path='import/analyze')
+    def import_analyze(self, request):
+        """Análise da planilha (sem gravar): classifica cada linha em
+        novo/atualizar/duplicado/erro. Aceita o modelo oficial e o relatório
+        de agências do Infotravel."""
+        raw_rows, mapping = self._read_rows(request)
+        if raw_rows is None:
+            return Response({'error': self._read_error}, status=400)
+        results, counts = analyze_rows(raw_rows)
+        return Response({'mapping': mapping, 'columns': CANON_COLUMNS,
+                         'summary': counts, 'rows': results})
+
+    @action(detail=False, methods=['post'], url_path='import/apply')
+    def import_apply(self, request):
+        """Aplicação transacional da importação (create|upsert)."""
+        mode = (request.data.get('mode') or 'upsert').strip()
+        if mode not in ('create', 'upsert'):
+            mode = 'upsert'
+        raw_rows = request.data.get('rows')
+        filename = (request.data.get('filename') or '').strip()
+        if not isinstance(raw_rows, list) or not raw_rows:
+            raw_rows, _mapping = self._read_rows(request)   # aceita re-upload do arquivo
+            if raw_rows is None:
+                return Response({'error': self._read_error}, status=400)
+        try:
+            summary = apply_rows(raw_rows, mode, request.user)
+        except ImportError_ as e:
+            return Response({'error': str(e)}, status=400)
+        # Evento agregado da importação (cada agência já é auditada pelos signals).
+        log_event('upload', model_name='Agency', model_label='Agência',
+                  object_repr=filename or 'Importação de agências',
+                  changes={'importacao': {
+                      'arquivo': filename, 'modo': mode,
+                      'total': summary['total'], 'criadas': summary['created'],
+                      'atualizadas': summary['updated'], 'ignoradas': summary['skipped'],
+                      'duplicadas': summary['duplicated'], 'erros': summary['errors'],
+                  }},
+                  user=request.user)
+        return Response(summary)
+
+    def _read_rows(self, request):
+        """Lê as linhas cruas de um upload (multipart 'file') ou de {rows:[...]}.
+        Define self._read_error e retorna None em caso de falha."""
+        self._read_error = ''
+        f = request.FILES.get('file')
+        if f is not None:
+            try:
+                return parse_csv_bytes(f.read())
+            except ImportError_ as e:
+                self._read_error = str(e)
+                return None, None
+        rows = request.data.get('rows')
+        if isinstance(rows, list):
+            return rows, {}
+        self._read_error = 'Envie um arquivo CSV ou a lista de linhas.'
+        return None, None
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export(self, request):
+        """Exporta as agências em CSV (';' p/ Excel pt-BR) no MESMO formato do
+        modelo de importação — o arquivo exportado é reimportável."""
+        qs = (self.filter_queryset(self.get_queryset())   # busca + ordenação + escopo
+              .exclude(status='rascunho'))
+        ids = request.query_params.get('ids')
+        if ids:
+            id_list = [int(x) for x in ids.split(',') if x.strip().isdigit()]
+            qs = qs.filter(id__in=id_list)
+
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=';')
+        w.writerow([label for _f, label in CANON_COLUMNS])
+        n = 0
+        for o in qs.iterator():
+            promoter = o.promoter
+            promoter_name = (f'{promoter.first_name} {promoter.last_name}'.strip()
+                             or promoter.username) if promoter else ''
+            w.writerow([
+                o.name,
+                o.company_name,
+                STATUS_LABELS.get(o.status, o.status),
+                format_cnpj(only_digits(o.cnpj)) if o.cnpj else '',
+                format_cpf(only_digits(o.cpf)) if o.cpf else '',
+                o.email,
+                o.phone,
+                o.mobile,
+                o.website,
+                o.responsible,
+                str(o.commission_rate) if o.commission_rate is not None else '',
+                promoter_name,
+                o.cep,
+                o.street,
+                o.number,
+                o.complement,
+                o.neighborhood,
+                o.city,
+                o.state,
+                o.country,
+                o.pix_key_type,
+                o.pix_key,
+                o.notes,
+            ])
+            n += 1
+        content = buf.getvalue().encode('utf-8-sig')   # BOM → acentos no Excel
+        fname = 'agencias.csv'
+        log_event('download', model_name='Agency', model_label='Agência',
+                  object_repr=fname,
+                  changes={'exportacao': {'arquivo': fname, 'registros': n,
+                                          'filtros': dict(request.query_params)}},
+                  user=request.user)
+        resp = HttpResponse(content, content_type='text/csv; charset=utf-8')
+        resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+        resp['X-Content-Type-Options'] = 'nosniff'
+        return resp
+
+    @action(detail=False, methods=['get'], url_path='template')
+    def template(self, request):
+        """Modelo de importação (cabeçalhos + 1 linha de exemplo)."""
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=';')
+        w.writerow([label for _f, label in CANON_COLUMNS])
+        # Linha de EXEMPLO (claramente identificada — remova antes de importar).
+        w.writerow([
+            'EXEMPLO - Agência Modelo', 'Agência Modelo Viagens Ltda', 'Ativa',
+            '12.345.678/0001-90', '', 'contato@agenciamodelo.com.br',
+            '51 3333-0000', '51 99999-0000', 'https://agenciamodelo.com.br',
+            'Maria da Silva', '12', 'Luciano',
+            '90000-000', 'Rua Exemplo', '100', 'Sala 1', 'Centro',
+            'Porto Alegre', 'RS', 'Brasil', 'cnpj', '12.345.678/0001-90',
+            'Importada do modelo de exemplo',
+        ])
+        content = buf.getvalue().encode('utf-8-sig')
+        resp = HttpResponse(content, content_type='text/csv; charset=utf-8')
+        resp['Content-Disposition'] = 'attachment; filename="modelo_agencias.csv"'
+        resp['X-Content-Type-Options'] = 'nosniff'
+        return resp
 
     @action(detail=True, methods=['delete'], url_path='discard')
     def discard(self, request, pk=None):

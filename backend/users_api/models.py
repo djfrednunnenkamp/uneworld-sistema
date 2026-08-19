@@ -116,6 +116,8 @@ class UserPermissions(models.Model):
     agencies_view      = models.BooleanField(default=False)
     agencies_edit      = models.BooleanField(default=False)
     agencies_delete    = models.BooleanField(default=False)
+    agencies_import    = models.BooleanField(default=False)
+    agencies_export    = models.BooleanField(default=False)
     agencies_view_logs = models.BooleanField(default=False)
 
     # Fornecedores
