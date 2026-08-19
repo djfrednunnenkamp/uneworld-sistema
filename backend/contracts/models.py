@@ -78,6 +78,12 @@ class Contract(models.Model):
     base_currency             = models.CharField('Moeda base', max_length=3, default='USD')
     PAYMENT_TYPE_CHOICES = [('a_vista', 'À vista'), ('parcelado', 'Parcelado')]
     payment_type              = models.CharField('Forma de pagamento', max_length=10, choices=PAYMENT_TYPE_CHOICES, default='parcelado')
+    # Quando o contrato é pago com cartão, o financeiro escolhe por qual contrato
+    # de adquirência a venda vai passar — é ele que determina a taxa descontada.
+    # Fica vazio quando o pagamento não é com cartão.
+    payment_gateway           = models.ForeignKey('config_api.PaymentGateway', on_delete=models.SET_NULL,
+                                                  null=True, blank=True, related_name='contracts',
+                                                  verbose_name='Gateway de pagamento')
     total_usd                 = models.DecimalField('Soma total (USD)', max_digits=12, decimal_places=2, null=True, blank=True)
     total_brl                 = models.DecimalField('Total em (BRL)', max_digits=12, decimal_places=2, null=True, blank=True)
     exchange_rate             = models.DecimalField('Câmbio', max_digits=10, decimal_places=4, null=True, blank=True)

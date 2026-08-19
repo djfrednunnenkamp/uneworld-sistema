@@ -30,6 +30,7 @@ def _m(v):
 
 
 def build_review_data(contract):
+    from .card_payment import dados_do_cartao
     from .serializers import _default_exchange_rate, avista_discount_usd
 
     lines = list(contract.accommodation_lines.select_related('accommodation_type', 'ship_cabin').all())
@@ -369,5 +370,7 @@ def build_review_data(contract):
         'totals_diff_brl': totals_diff,
         'review_note': contract.review_note or '',
         'payment_plan_applied': plan,
+        # Cartão: por qual adquirente esta venda vai passar (escolha do financeiro).
+        'card': dados_do_cartao(contract),
         'flags': flags,
     }

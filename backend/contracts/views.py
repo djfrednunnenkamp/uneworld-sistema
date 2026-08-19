@@ -863,9 +863,35 @@ class ContractViewSet(SoftDeleteViewSetMixin, viewsets.ModelViewSet):
             return Response({'error': 'Pagante inválido.'}, status=http_status.HTTP_400_BAD_REQUEST)
         if payer:
             contract.receipt_payer = payer
+
+        # Cartão: por qual adquirente a venda passa. Só é exigido quando há
+        # gateway cadastrado — não dá para pedir uma escolha que não existe.
+        from .card_payment import dados_do_cartao
+        cartao = dados_do_cartao(contract)
+        campos = ['stage', 'receipt_payer', 'review_note']
+        if cartao and cartao['options']:
+            gid = request.data.get('payment_gateway')
+            permitidos = {o['id'] for o in cartao['options']}
+            if gid in (None, ''):
+                return Response({'error': 'Escolha o gateway de pagamento do cartão.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            try:
+                gid = int(gid)
+            except (TypeError, ValueError):
+                gid = None
+            if gid not in permitidos:
+                return Response({'error': 'Gateway de pagamento inválido.'},
+                                status=http_status.HTTP_400_BAD_REQUEST)
+            contract.payment_gateway_id = gid
+            campos.append('payment_gateway')
+        elif contract.payment_gateway_id and not cartao:
+            # Deixou de ser cartão em alguma reedição: a escolha não vale mais.
+            contract.payment_gateway = None
+            campos.append('payment_gateway')
+
         contract.stage = 'enviado'
         contract.review_note = ''
-        contract.save(update_fields=['stage', 'receipt_payer', 'review_note'])
+        contract.save(update_fields=campos)
         return Response(ContractSerializer(contract, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='reject')
