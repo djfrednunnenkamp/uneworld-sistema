@@ -277,6 +277,10 @@ def receivables_report(user, f, limit=300, can_past=True):
                 'fee_brl': str(fee) if pct is not None else None,
                 'gross_brl': str(bruto.quantize(CENT)),
                 'detail_text': inst.detail or '',
+                # Contrato assinado (quando já existe): o pop-up da parcela
+                # mostra o PDF do lado esquerdo, pelo visualizador padrão.
+                'signed_file': (c.signed_file.url if c.signed_file else None),
+                'signed_at': (str(c.signed_at.date()) if c.signed_at else None),
                 # Recebimentos: `received_real` separa o dinheiro lançado de
                 # verdade da aproximação pelo estágio do contrato.
                 'received_real': bool(pagamentos),
