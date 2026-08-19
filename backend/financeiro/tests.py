@@ -320,3 +320,16 @@ class EtapaDoContratoNosRecebiveisTest(TestCase):
         self.assertEqual(Decimal(etapas['enviado']['brl']), Decimal('300'))
         self.assertTrue(etapas['assinado']['firmado'])
         self.assertFalse(etapas['enviado']['firmado'])
+
+    def test_desta_etapa_em_diante(self):
+        """Quem planeja caixa corta o funil: "do para-assinar em diante"."""
+        self.assertEqual(self.total({'from_stage': 'enviado'}), Decimal('1800'))   # enviado+assinado+faturado
+        self.assertEqual(self.total({'from_stage': 'a_faturar'}), Decimal('2000'))
+        self.assertEqual(self.total({'from_stage': 'em_edicao'}), Decimal('2090'))  # tudo
+        self.assertEqual(self.total({'from_stage': 'assinado'}), Decimal('1500'))
+
+    def test_etapa_desconhecida_nao_esconde_nada(self):
+        self.assertEqual(self.total({'from_stage': 'inventada'}), Decimal('2090'))
+
+    def test_etapas_soltas_ainda_mandam_mais_que_o_corte(self):
+        self.assertEqual(self.total({'stages': ['em_edicao'], 'from_stage': 'assinado'}), Decimal('90'))

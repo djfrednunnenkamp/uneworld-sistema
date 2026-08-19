@@ -26,6 +26,18 @@ STAGES_FIRMADOS = ('assinado', 'conf_pagamento', 'em_pagamento', 'faturado')
 # As etapas anteriores, na ordem em que o contrato as percorre. Vê-las é útil
 # para saber o que ESTÁ POR VIR — daí a chave ligar/desligar na tela.
 STAGES_A_CAMINHO = ('em_edicao', 'revisao', 'a_faturar', 'aprovado', 'enviado')
+# O caminho do contrato, em ordem. Serve para o "desta etapa em diante": quem
+# planeja caixa raciocina por corte no funil ("do para-assinar em diante"), nao
+# marcando etapas soltas.
+ORDEM_DAS_ETAPAS = STAGES_A_CAMINHO + STAGES_FIRMADOS
+
+
+def etapas_a_partir_de(etapa):
+    "As etapas de `etapa` em diante. Etapa desconhecida = todas."
+    try:
+        return list(ORDEM_DAS_ETAPAS[ORDEM_DAS_ETAPAS.index(etapa):])
+    except ValueError:
+        return list(ORDEM_DAS_ETAPAS)
 
 
 def today():
@@ -75,6 +87,7 @@ def parse_filters(request):
          'currency': q.get('currency') or None,
          # Recebíveis: quais etapas do contrato entram. Vazio = só os firmados.
          'stages': [e for e in (q.get('stages') or '').split(',') if e] or None,
+         'from_stage': q.get('from_stage') or None,
          'a_caminho': (q.get('a_caminho') or '').lower() in ('1', 'true', 'sim')}
     return f
 
@@ -113,6 +126,8 @@ def receivables_qs(user, f):
     # Etapas escolhidas na tela > a chave "o que está por vir" > só os firmados.
     if f.get('stages'):
         qs = qs.filter(contract__stage__in=f['stages'])
+    elif f.get('from_stage'):
+        qs = qs.filter(contract__stage__in=etapas_a_partir_de(f['from_stage']))
     elif not f.get('a_caminho'):
         qs = qs.filter(contract__stage__in=STAGES_FIRMADOS)
     if f.get('from'):
@@ -209,7 +224,7 @@ def receivables_report(user, f, limit=300, can_past=True):
     # Quanto há em cada etapa, ignorando o filtro de etapa — é o que permite à
     # tela dizer o tamanho do que está de fora antes de a pessoa clicar.
     from django.db.models import Count, Sum
-    sem_etapa = dict(f); sem_etapa['stages'] = None; sem_etapa['a_caminho'] = True
+    sem_etapa = dict(f); sem_etapa['stages'] = None; sem_etapa['from_stage'] = None; sem_etapa['a_caminho'] = True
     por_etapa = {r['contract__stage']: r for r in receivables_qs(user, sem_etapa)
                  .values('contract__stage').annotate(brl=Sum('value_brl'), n=Count('id'))}
     stage_totals = [{'stage': etapa, 'brl': str(_d(dados['brl']).quantize(CENT)), 'count': dados['n'],
@@ -226,6 +241,7 @@ def receivables_report(user, f, limit=300, can_past=True):
         'timeline': timeline, 'methods': methods, 'detail': detail,
         'count': len(rows), 'currency': 'BRL',
         'stage_totals': stage_totals,
+        'stage_order': list(ORDEM_DAS_ETAPAS),
         'note_etapas': ('Por padrão só entram contratos assinados — antes da assinatura a parcela '
                         'ainda é intenção, não dinheiro a receber.'),
         'note_taxas': ('A taxa do cartão é a da bandeira mais cara do gateway naquele plano — '
