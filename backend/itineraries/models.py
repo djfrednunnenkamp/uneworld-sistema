@@ -211,6 +211,13 @@ class Itinerary(models.Model):
     map_show_country_names = models.BooleanField('Mostrar o nome dos países', default=False)
     map_show_states      = models.BooleanField('Mostrar a divisão dos estados', default=False)
     map_show_state_names = models.BooleanField('Mostrar o nome dos estados', default=False)
+    # Trecho de VOLTA: liga a linha do último ponto de volta ao primeiro. Quase
+    # toda viagem termina onde começou, mas nem todo mapa deve mostrar isso (num
+    # roteiro que segue em frente, a linha de volta seria mentira). Desligado por
+    # padrão para não inventar um trecho que ninguém pediu. O estilo/cor/ícone
+    # desse trecho saem do ÚLTIMO ponto, que hoje não usa esses campos por não
+    # ter um "próximo".
+    map_close_route      = models.BooleanField('Ligar o último ponto ao primeiro', default=False)
 
     # Vínculo vivo com templates (por campo): _template = template de origem;
     # _template_linked = se True, editar o template nas Configurações reaplica o
