@@ -87,7 +87,7 @@ class PasswordResetBoundaryTest(APITestCase):
         original = self.target_su.email
         self.client.force_authenticate(self.actor)
         r = self.client.patch(f'/api/users/{self.target_su.id}/',
-                              {'email': 'atacante@evil.com'}, format='json')
+                              {'email': 'atacante@evil.com', 'cpf': '52998224725'}, format='json')
         self.assertEqual(r.status_code, 403)
         self.target_su.refresh_from_db()
         self.assertEqual(self.target_su.email, original)
@@ -98,7 +98,7 @@ class PasswordResetBoundaryTest(APITestCase):
         superusuária (comportamento esperado do sistema)."""
         self.client.force_authenticate(self.super_root)
         r = self.client.patch(f'/api/users/{self.target_su.id}/',
-                              {'email': 'novo_admin@x.com'}, format='json')
+                              {'email': 'novo_admin@x.com', 'cpf': '52998224725'}, format='json')
         self.assertEqual(r.status_code, 200)
         self.target_su.refresh_from_db()
         self.assertEqual(self.target_su.email, 'novo_admin@x.com')
@@ -110,7 +110,7 @@ class PasswordResetBoundaryTest(APITestCase):
         conta comum por quem tem users_edit."""
         self.client.force_authenticate(self.actor)
         r = self.client.patch(f'/api/users/{self.target_reg.id}/',
-                              {'email': 'regular_novo@x.com'}, format='json')
+                              {'email': 'regular_novo@x.com', 'cpf': '111.444.777-35'}, format='json')
         self.assertEqual(r.status_code, 200)
         self.target_reg.refresh_from_db()
         self.assertEqual(self.target_reg.email, 'regular_novo@x.com')
@@ -294,7 +294,8 @@ class ProfileLiveLinkTest(APITestCase):
         self.client.force_authenticate(self.root)
         # Cria usuário de agência → vincula ao perfil padrão e copia as permissões.
         r = self.client.post('/api/users/create/',
-                             {'email': 'ag@x.com', 'first_name': 'Ag', 'agency_user': True}, format='json')
+                             {'email': 'ag@x.com', 'first_name': 'Ag', 'agency_user': True,
+                              'cpf': '529.982.247-25'}, format='json')
         self.assertEqual(r.status_code, 201, r.data)
         uid = r.data['id']
         self.assertEqual(r.data['profile_id'], self.prof.id)
@@ -311,7 +312,8 @@ class ProfileLiveLinkTest(APITestCase):
     def test_manual_permission_edit_unlinks(self):
         self.client.force_authenticate(self.root)
         r = self.client.post('/api/users/create/',
-                             {'email': 'ag2@x.com', 'first_name': 'Ag2', 'agency_user': True}, format='json')
+                             {'email': 'ag2@x.com', 'first_name': 'Ag2', 'agency_user': True,
+                              'cpf': '11144477735'}, format='json')
         uid = r.data['id']
         # Ajuste manual (profile_id=null) desvincula: perfil não sobrescreve mais.
         self.client.patch(f'/api/users/{uid}/',
@@ -363,7 +365,8 @@ class AgencyAdminManagementTest(APITestCase):
 
     def test_create_user_links_to_agency_and_applies_default_profile(self):
         self.client.force_authenticate(self.admin)
-        r = self.client.post('/api/users/create/', {'email': 'novo@x.com', 'first_name': 'Novo'}, format='json')
+        r = self.client.post('/api/users/create/', {'email': 'novo@x.com', 'first_name': 'Novo',
+                                                    'cpf': '52998224725'}, format='json')
         self.assertEqual(r.status_code, 201, r.data)
         from django.contrib.auth.models import User
         from agencies.models import AgencyMember
@@ -377,7 +380,7 @@ class AgencyAdminManagementTest(APITestCase):
         não concede o que não tem, e o baseline das que ele não tem é preservado."""
         self.client.force_authenticate(self.admin)
         r = self.client.post('/api/users/create/', {
-            'email': 'custom@x.com', 'first_name': 'Custom',
+            'email': 'custom@x.com', 'first_name': 'Custom', 'cpf': '111.444.777-35',
             # tira passengers_view_basic (o admin tem → pode revogar); tenta tirar
             # lists_view (o admin NÃO tem → ignorado, baseline fica True)
             'permissions': {'passengers_view_basic': False, 'contracts_view': True, 'lists_view': False},
@@ -509,3 +512,134 @@ class ShowOnSiteFlagTest(APITestCase):
         self.assertTrue(r.json()['show_on_site'])
         r = self.client.patch(f'/api/users/{self.target.id}/', {'show_on_site': False}, format='json')
         self.assertFalse(r.json()['show_on_site'])
+
+
+class IdentidadePorCpfTest(APITestCase):
+    """Na operadora o e-mail é do CARGO: quem sai devolve o endereço e quem
+    assume a vaga usa o mesmo. Quem identifica a PESSOA é o CPF."""
+
+    CPF_A = '529.982.247-25'
+    CPF_B = '111.444.777-35'
+
+    def setUp(self):
+        self.admin = make_user('cpfadmin', superuser=True)
+        self.client.force_authenticate(self.admin)
+
+    def _criar(self, email, cpf, nome='Fulano'):
+        return self.client.post('/api/users/create/',
+                                {'email': email, 'first_name': nome, 'cpf': cpf}, format='json')
+
+    # ── Criação ─────────────────────────────────────────────────────────────
+    def test_cpf_obrigatorio_na_criacao(self):
+        r = self.client.post('/api/users/create/', {'email': 'sem@cpf.com'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('CPF', r.data['error'])
+        self.assertFalse(User.objects.filter(email='sem@cpf.com').exists())
+
+    def test_cpf_invalido_recusado(self):
+        self.assertEqual(self._criar('x@x.com', '111.111.111-11').status_code, 400)
+        self.assertEqual(self._criar('x@x.com', '123').status_code, 400)
+
+    def test_cpf_guardado_so_com_digitos_e_devolvido_formatado(self):
+        r = self._criar('a@x.com', self.CPF_A)
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data['cpf'], self.CPF_A)
+        perms = UserPermissions.objects.get(user__email='a@x.com')
+        self.assertEqual(perms.cpf, '52998224725')
+
+    def test_dois_ativos_nao_podem_ter_o_mesmo_cpf(self):
+        self._criar('a@x.com', self.CPF_A)
+        r = self._criar('b@x.com', self.CPF_A)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('já é do usuário', r.data['error'])
+
+    # ── O e-mail é do cargo ─────────────────────────────────────────────────
+    def test_excluir_libera_o_email_para_o_substituto(self):
+        r = self._criar('operacional02@uneworld.com.br', self.CPF_A, 'Antigo')
+        antigo_id = r.data['id']
+        self.assertEqual(self.client.delete(f'/api/users/{antigo_id}/delete/').status_code, 204)
+
+        antigo = User.objects.get(pk=antigo_id)
+        self.assertEqual(antigo.email, '')                       # devolveu o endereço
+        self.assertNotEqual(antigo.username, 'operacional02@uneworld.com.br')
+        perms = UserPermissions.objects.get(user=antigo)
+        self.assertEqual(perms.former_email, 'operacional02@uneworld.com.br')
+        self.assertEqual(perms.cpf, '52998224725')               # a identidade fica
+
+        # o substituto assume o MESMO e-mail, com o CPF dele
+        r2 = self._criar('operacional02@uneworld.com.br', self.CPF_B, 'Novo')
+        self.assertEqual(r2.status_code, 201)
+        self.assertNotEqual(r2.data['id'], antigo_id)
+
+    def test_login_do_substituto_nao_fica_ambiguo(self):
+        r = self._criar('vaga@uneworld.com.br', self.CPF_A)
+        self.client.delete(f"/api/users/{r.data['id']}/delete/")
+        novo = self._criar('vaga@uneworld.com.br', self.CPF_B)
+        u = User.objects.get(pk=novo.data['id']); u.set_password('SenhaForte#2026'); u.save()
+
+        self.client.force_authenticate(None)
+        r = self.client.post('/api/users/login/',
+                             {'email': 'vaga@uneworld.com.br', 'password': 'SenhaForte#2026'}, format='json')
+        self.assertEqual(r.status_code, 200)           # nada de "e-mail ambíguo"
+        self.assertEqual(r.data['id'], novo.data['id'])
+
+    # ── Recontratação ───────────────────────────────────────────────────────
+    def test_cpf_na_lixeira_bloqueia_e_oferece_restaurar(self):
+        r = self._criar('c@x.com', self.CPF_A, 'Voltou')
+        uid = r.data['id']
+        self.client.delete(f'/api/users/{uid}/delete/')
+
+        r2 = self._criar('outro@x.com', self.CPF_A)
+        self.assertEqual(r2.status_code, 409)
+        self.assertEqual(r2.data['code'], 'cpf_na_lixeira')
+        self.assertEqual(r2.data['deleted_user']['id'], uid)
+        self.assertEqual(r2.data['deleted_user']['former_email'], 'c@x.com')
+
+    def test_restaurar_devolve_o_email_antigo_quando_esta_livre(self):
+        r = self._criar('livre@x.com', self.CPF_A)
+        uid = r.data['id']
+        self.client.delete(f'/api/users/{uid}/delete/')
+        r2 = self.client.post(f'/api/users/{uid}/restore/', {}, format='json')
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.data['email'], 'livre@x.com')
+        u = User.objects.get(pk=uid)
+        self.assertTrue(u.is_active)
+        self.assertEqual(u.username, 'livre@x.com')
+
+    def test_restaurar_com_o_email_ja_ocupado_exige_outro(self):
+        r = self._criar('vaga2@x.com', self.CPF_A)
+        uid = r.data['id']
+        self.client.delete(f'/api/users/{uid}/delete/')
+        self._criar('vaga2@x.com', self.CPF_B)            # o substituto assumiu
+
+        r2 = self.client.post(f'/api/users/{uid}/restore/', {}, format='json')
+        self.assertEqual(r2.status_code, 409)
+        self.assertEqual(r2.data['code'], 'email_ocupado')
+        # com outro endereço, volta
+        r3 = self.client.post(f'/api/users/{uid}/restore/', {'email': 'novo.endereco@x.com'}, format='json')
+        self.assertEqual(r3.status_code, 200)
+        self.assertEqual(r3.data['email'], 'novo.endereco@x.com')
+
+    # ── Edição ──────────────────────────────────────────────────────────────
+    def test_editar_cadastro_de_conta_antiga_passa_a_exigir_cpf(self):
+        antigo = make_user('semcpf')                       # nasceu antes da regra
+        r = self.client.patch(f'/api/users/{antigo.id}/', {'first_name': 'Novo Nome'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('CPF', r.data['error'])
+        r = self.client.patch(f'/api/users/{antigo.id}/',
+                              {'first_name': 'Novo Nome', 'cpf': self.CPF_A}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['cpf'], self.CPF_A)
+
+    def test_acao_pontual_nao_e_edicao_de_cadastro(self):
+        """Bloquear/desbloquear não pode parar de funcionar por falta de CPF."""
+        antigo = make_user('semcpf2')
+        r = self.client.patch(f'/api/users/{antigo.id}/', {'is_active': False}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.data['is_active'])
+
+    def test_nao_da_para_roubar_o_cpf_de_outro_ativo(self):
+        self._criar('d@x.com', self.CPF_A)
+        r = self._criar('e@x.com', self.CPF_B)
+        r2 = self.client.patch(f"/api/users/{r.data['id']}/", {'cpf': self.CPF_A}, format='json')
+        self.assertEqual(r2.status_code, 400)

@@ -613,6 +613,19 @@ class UserPermissions(models.Model):
     is_deleted = models.BooleanField('Excluído', default=False, db_index=True)
     deleted_at = models.DateTimeField('Excluído em', null=True, blank=True)
 
+    # ── Identidade da pessoa ──────────────────────────────────────────────────
+    # Na operadora o E-MAIL É DO CARGO, não da pessoa: quem sai leva o crachá,
+    # não o endereço — operacional02@ passa para quem assumir a vaga. Então o
+    # e-mail não serve como identidade; quem diz de quem é a conta é o CPF.
+    # Guardado só com dígitos. Único entre os usuários NÃO excluídos (ver a
+    # constraint abaixo); um CPF que aparece na lixeira significa "essa pessoa
+    # já teve conta aqui" — o cadastro oferece restaurar em vez de duplicar.
+    cpf = models.CharField('CPF', max_length=11, blank=True, default='', db_index=True)
+    # E-mail que a conta tinha quando foi excluída. Some do User (para liberar o
+    # endereço na hora) mas fica registrado aqui, senão a lixeira viraria uma
+    # lista de contas sem identificação nenhuma.
+    former_email = models.EmailField('E-mail anterior', blank=True, default='')
+
     # ── Termos e condições — quando o usuário aceitou por último. Se os
     # termos forem editados depois dessa data, precisa aceitar de novo.
     terms_accepted_at = models.DateTimeField('Termos aceitos em', null=True, blank=True)
@@ -620,6 +633,15 @@ class UserPermissions(models.Model):
     class Meta:
         verbose_name = 'Permissões de usuário'
         verbose_name_plural = 'Permissões de usuários'
+        constraints = [
+            # Dois usuários ATIVOS não podem ser a mesma pessoa. Na lixeira pode
+            # repetir: é o histórico de quem já passou por aqui.
+            models.UniqueConstraint(
+                fields=['cpf'],
+                condition=models.Q(is_deleted=False) & ~models.Q(cpf=''),
+                name='uniq_cpf_usuario_ativo',
+            ),
+        ]
 
     def __str__(self):
         return f'Permissões de {self.user.username}'

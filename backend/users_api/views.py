@@ -14,6 +14,7 @@ from core.throttling import LoginRateThrottle, PasswordResetRateThrottle, Invite
 from core.file_cleanup import delete_fieldfile
 from .models import PasswordResetToken, InviteToken
 from .email_service import send_reset_password, send_invite
+from fornecedores.normalize import only_digits, validate_cpf, format_cpf
 from .permissions import PERMISSION_FIELDS, permissions_dict, has_any_perm, sync_is_staff, get_user_permissions, apply_profile, agency_scope_ids, agency_admin_ids, is_operadora_user, can_manage_agency_user, drop_agency_memberships_if_internal
 
 
@@ -55,6 +56,69 @@ def _valid_job_role_id(v):
     return v if ConfigJobRole.objects.filter(id=v).exists() else None
 
 
+# ── Identidade da pessoa (CPF) ───────────────────────────────────────────────
+# O e-mail da operadora é do CARGO: quem sai devolve o endereço e quem entra o
+# assume. Por isso o e-mail não identifica ninguém — o CPF identifica.
+
+def parse_cpf(bruto):
+    """(cpf_em_digitos, erro). Vazio devolve ('', None) — quem exige é o chamador."""
+    d = only_digits(bruto or '')
+    if not d:
+        return '', None
+    if len(d) != 11:
+        return '', 'CPF incompleto.'
+    if not validate_cpf(d):
+        return '', 'CPF inválido.'
+    return d, None
+
+
+def dono_do_cpf(cpf, excluir_user_id=None):
+    """Quem já usa este CPF: (usuário ativo, usuário na lixeira). Um CPF na
+    lixeira não bloqueia por acidente — significa que a pessoa já teve conta, e
+    o certo é restaurar aquela, não abrir outra."""
+    from .models import UserPermissions
+    qs = UserPermissions.objects.filter(cpf=cpf).select_related('user')
+    if excluir_user_id:
+        qs = qs.exclude(user_id=excluir_user_id)
+    ativo = qs.filter(is_deleted=False).first()
+    lixeira = qs.filter(is_deleted=True).first()
+    return (ativo.user if ativo else None), (lixeira.user if lixeira else None)
+
+
+def erro_de_cpf_repetido(cpf, excluir_user_id=None):
+    """Response de conflito quando o CPF já é de alguém, ou None se está livre."""
+    ativo, lixeira = dono_do_cpf(cpf, excluir_user_id)
+    if ativo:
+        nome = f'{ativo.first_name} {ativo.last_name}'.strip() or ativo.email or ativo.username
+        return Response({'error': f'Este CPF já é do usuário {nome}.'}, status=400)
+    if lixeira:
+        nome = f'{lixeira.first_name} {lixeira.last_name}'.strip() or lixeira.username
+        perms = get_user_permissions(lixeira)
+        return Response({
+            'error': (f'Este CPF é de {nome}, que está em Excluídos. '
+                      f'Restaure aquela conta em vez de criar outra — o histórico da pessoa fica junto.'),
+            'code': 'cpf_na_lixeira',
+            'deleted_user': {'id': lixeira.id, 'name': nome, 'former_email': perms.former_email},
+        }, status=409)
+    return None
+
+
+def liberar_email(user, perms):
+    """Tira o e-mail da conta para que outra pessoa possa assumi-lo.
+
+    O endereço vai para `former_email` (a lixeira precisa continuar legível) e o
+    username, que é obrigatório e único no Django, vira um marcador interno.
+    Sem isso o e-mail ficaria preso a uma conta que ninguém mais usa — e o
+    login, que busca por e-mail, veria duas contas com o mesmo endereço."""
+    import uuid
+    if user.email:
+        perms.former_email = user.email
+    user.email = ''
+    user.username = f'excluido-{user.id}-{uuid.uuid4().hex[:8]}'
+    user.save(update_fields=['email', 'username'])
+    perms.save(update_fields=['former_email'])
+
+
 def serialize_user(u, perms=None):
     perms = perms or get_user_permissions(u)
     scope = agency_scope_ids(u)   # None p/ interno/superusuário; lista de ids p/ usuário de agência
@@ -81,6 +145,10 @@ def serialize_user(u, perms=None):
         'last_name':    u.last_name,
         'full_name':    f"{u.first_name} {u.last_name}".strip() or u.username,
         'phone':        perms.phone,
+        # Identidade da pessoa (o e-mail é do cargo, não dela). `former_email`
+        # só existe em conta excluída — é o endereço que ela devolveu ao sair.
+        'cpf':          format_cpf(perms.cpf) if perms.cpf else '',
+        'former_email': perms.former_email,
         'is_seller':    perms.is_seller,
         'is_promoter':  perms.is_promoter,
         'seller_commission_percent': perms.seller_commission_percent,
@@ -401,6 +469,15 @@ def user_create(request):
     if User.objects.filter(email__iexact=email).exists():
         return Response({'error': 'E-mail já cadastrado.'}, status=400)
 
+    # CPF é obrigatório em conta NOVA: é ele que diz quem é a pessoa. O e-mail,
+    # na operadora, é do cargo — muda de dono quando alguém sai.
+    cpf, erro_cpf = parse_cpf(data.get('cpf'))
+    if not cpf:
+        return Response({'error': erro_cpf or 'CPF é obrigatório.'}, status=400)
+    conflito = erro_de_cpf_repetido(cpf)
+    if conflito:
+        return conflito
+
     user = User.objects.create_user(
         username=email, password=None, email=email,
         first_name=first_name, last_name=last_name,
@@ -464,6 +541,11 @@ def user_create(request):
         target_agency = req_ag if req_ag in actor_admin_ids else actor_admin_ids[0]
         AgencyMember.objects.get_or_create(agency_id=target_agency, user=user, defaults={'role': 'operator'})
 
+    # O CPF já foi validado lá em cima — grava junto com o resto do perfil.
+    perms_cpf = get_user_permissions(user)
+    perms_cpf.cpf = cpf
+    perms_cpf.save(update_fields=['cpf'])
+
     if 'phone' in data or 'is_seller' in data or 'is_promoter' in data or 'seller_commission_percent' in data or 'job_role' in data or 'show_on_site' in data:
         perms = get_user_permissions(user)
         fields = []
@@ -518,6 +600,25 @@ def user_update(request, pk):
 
     data = request.data
     if has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit:
+        # CPF: cobrado quando se edita o CADASTRO da pessoa (nome, e-mail ou o
+        # próprio CPF) — é assim que as contas antigas, que nasceram sem ele,
+        # vão ficando identificadas, sem travar ninguém de uma vez. Uma ação
+        # pontual (bloquear, trocar o cargo, mexer em permissão) não é edição de
+        # cadastro e passa direto: senão bastaria um usuário sem CPF para o
+        # botão de bloquear parar de funcionar.
+        perms_atual = get_user_permissions(user)
+        editando_cadastro = any(k in data for k in ('cpf', 'email', 'first_name', 'last_name'))
+        if 'cpf' in data or (editando_cadastro and not perms_atual.cpf):
+            cpf, erro_cpf = parse_cpf(data.get('cpf') if 'cpf' in data else perms_atual.cpf)
+            if not cpf:
+                return Response({'error': erro_cpf or 'CPF é obrigatório.'}, status=400)
+            if cpf != perms_atual.cpf:
+                conflito = erro_de_cpf_repetido(cpf, excluir_user_id=user.pk)
+                if conflito:
+                    return conflito
+                perms_atual.cpf = cpf
+                perms_atual.save(update_fields=['cpf'])
+
         if 'first_name' in data: user.first_name = data['first_name']
         if 'last_name'  in data: user.last_name  = data['last_name']
         if 'email' in data:
@@ -801,6 +902,9 @@ def user_delete(request, pk):
     perms.save(update_fields=['is_deleted', 'deleted_at'])
     user.is_active = False
     user.save(update_fields=['is_active'])
+    # O e-mail volta para a operadora: quem assumir a vaga usa o mesmo endereço.
+    # Quem continua identificando esta conta é o CPF, que fica onde está.
+    liberar_email(user, perms)
     _log_user_action(request.user, user, 'delete')
     return Response(status=204)
 
@@ -839,9 +943,35 @@ def user_restore(request, pk):
     except User.DoesNotExist:
         return Response({'error': 'Usuário não encontrado.'}, status=404)
     perms = get_user_permissions(user)
+    # Ao excluir, a conta devolveu o e-mail. Para voltar ela precisa de um: o
+    # antigo, se ninguém o assumiu, ou um novo informado por quem restaura.
+    if not user.email:
+        alvo = (request.data.get('email') or perms.former_email or '').strip().lower()
+        if not alvo:
+            return Response({'error': 'Informe o e-mail para restaurar esta conta.'}, status=400)
+        dono = User.objects.filter(email__iexact=alvo).exclude(pk=user.pk).first()
+        if dono:
+            nome = f'{dono.first_name} {dono.last_name}'.strip() or dono.email
+            return Response({
+                'error': (f'O e-mail {alvo} agora é de {nome}. '
+                          f'Restaure informando outro e-mail para esta pessoa.'),
+                'code': 'email_ocupado',
+            }, status=409)
+        user.email = alvo
+        user.username = alvo
+        user.save(update_fields=['email', 'username'])
+        perms.former_email = ''
+    # Voltar do zero: dois ativos não podem ser a mesma pessoa.
+    if perms.cpf:
+        ativo, _ = dono_do_cpf(perms.cpf, excluir_user_id=user.pk)
+        if ativo:
+            nome = f'{ativo.first_name} {ativo.last_name}'.strip() or ativo.email
+            return Response({'error': f'Já existe um usuário ativo com este CPF ({nome}).'}, status=400)
     perms.is_deleted = False
     perms.deleted_at = None
-    perms.save(update_fields=['is_deleted', 'deleted_at'])
+    user.is_active = True
+    user.save(update_fields=['is_active'])
+    perms.save(update_fields=['is_deleted', 'deleted_at', 'former_email'])
     _log_user_action(request.user, user, 'restore')
     return Response(serialize_user(user, perms))
 
