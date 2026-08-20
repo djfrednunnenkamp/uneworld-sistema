@@ -643,3 +643,64 @@ class IdentidadePorCpfTest(APITestCase):
         r = self._criar('e@x.com', self.CPF_B)
         r2 = self.client.patch(f"/api/users/{r.data['id']}/", {'cpf': self.CPF_A}, format='json')
         self.assertEqual(r2.status_code, 400)
+
+
+class LookupPorCpfTest(APITestCase):
+    """Consulta antes de cadastrar: o CPF diz se a pessoa já existe."""
+
+    CPF_A = '529.982.247-25'
+
+    def setUp(self):
+        self.admin = make_user('lookupadmin', superuser=True)
+        self.client.force_authenticate(self.admin)
+
+    def _criar(self, email, cpf):
+        return self.client.post('/api/users/create/',
+                                {'email': email, 'first_name': 'Fulano', 'cpf': cpf}, format='json')
+
+    def test_cpf_livre(self):
+        r = self.client.get('/api/users/lookup-cpf/', {'cpf': self.CPF_A})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.data['found'])
+        self.assertEqual(r.data['cpf'], self.CPF_A)   # já volta formatado p/ o form
+
+    def test_cpf_invalido(self):
+        self.assertEqual(self.client.get('/api/users/lookup-cpf/', {'cpf': '111'}).status_code, 400)
+        self.assertEqual(self.client.get('/api/users/lookup-cpf/').status_code, 400)
+
+    def test_acha_usuario_ativo_com_o_cadastro_inteiro(self):
+        novo = self._criar('ativo@x.com', self.CPF_A)
+        r = self.client.get('/api/users/lookup-cpf/', {'cpf': '52998224725'})
+        self.assertTrue(r.data['found'])
+        self.assertFalse(r.data['deleted'])
+        self.assertTrue(r.data['visible'])
+        self.assertEqual(r.data['user']['id'], novo.data['id'])
+        self.assertEqual(r.data['user']['email'], 'ativo@x.com')
+
+    def test_acha_usuario_na_lixeira(self):
+        novo = self._criar('saiu@x.com', self.CPF_A)
+        self.client.delete(f"/api/users/{novo.data['id']}/delete/")
+        r = self.client.get('/api/users/lookup-cpf/', {'cpf': self.CPF_A})
+        self.assertTrue(r.data['found'])
+        self.assertTrue(r.data['deleted'])
+        self.assertEqual(r.data['user']['former_email'], 'saiu@x.com')
+
+    def test_quem_nao_gerencia_nao_ve_de_quem_e(self):
+        """A consulta não pode virar um jeito de descobrir quem trabalha aqui."""
+        from agencies.models import Agency, AgencyMember
+        self._criar('interno@x.com', self.CPF_A)
+        ag = Agency.objects.create(name='AgLookup')
+        chefe = make_user('chefedeag')
+        AgencyMember.objects.create(agency=ag, user=chefe, role='admin')
+
+        self.client.force_authenticate(chefe)
+        r = self.client.get('/api/users/lookup-cpf/', {'cpf': self.CPF_A})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.data['found'])
+        self.assertFalse(r.data['visible'])
+        self.assertNotIn('user', r.data)
+
+    def test_sem_permissao_de_criar_nao_consulta(self):
+        zé = make_user('zedasilva')
+        self.client.force_authenticate(zé)
+        self.assertEqual(self.client.get('/api/users/lookup-cpf/', {'cpf': self.CPF_A}).status_code, 403)

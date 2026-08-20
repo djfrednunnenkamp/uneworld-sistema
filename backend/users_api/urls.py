@@ -15,6 +15,7 @@ urlpatterns = [
     path('invite/validate/',      views.validate_invite, name='validate-invite'),
     path('invite/accept/',        views.accept_invite,   name='accept-invite'),
     path('',                      views.user_list,       name='user-list'),
+    path('lookup-cpf/',           views.user_lookup_cpf, name='user-lookup-cpf'),
     path('create/',               views.user_create,     name='user-create'),
     path('<int:pk>/',             views.user_update,     name='user-update'),
     path('<int:pk>/invite/',       views.send_user_invite, name='send-invite'),

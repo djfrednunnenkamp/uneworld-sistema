@@ -449,6 +449,47 @@ def user_list(request):
     return Response(result)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_lookup_cpf(request):
+    """Consulta ANTES de cadastrar: este CPF já é de alguém?
+
+    É o primeiro passo do "Novo usuário" — o e-mail não serve para essa
+    pergunta (ele muda de dono quando alguém sai da vaga), então quem responde
+    é o CPF. Três respostas possíveis:
+      - livre                → pode cadastrar do zero
+      - já existe, ativo     → é a mesma pessoa; edite o cadastro dela
+      - já existe, excluído  → ela já trabalhou aqui; restaure em vez de duplicar
+
+    Quem não pode gerenciar aquela conta recebe só o "existe", sem nome nem
+    e-mail: a consulta não pode virar um jeito de descobrir quem trabalha na
+    operadora digitando CPFs.
+    """
+    if not (has_any_perm(request.user, 'manage_users', 'users_edit') or agency_admin_ids(request.user)):
+        return Response({'error': 'Sem permissão.'}, status=403)
+
+    cpf, erro = parse_cpf(request.query_params.get('cpf'))
+    if not cpf:
+        return Response({'error': erro or 'Informe o CPF.'}, status=400)
+
+    ativo, lixeira = dono_do_cpf(cpf)
+    achado = ativo or lixeira
+    if not achado:
+        return Response({'found': False, 'cpf': format_cpf(cpf)})
+
+    perms = get_user_permissions(achado)
+    pode_ver = (has_any_perm(request.user, 'manage_users', 'users_edit')
+                or can_manage_agency_user(request.user, achado))
+    if not pode_ver:
+        return Response({'found': True, 'visible': False, 'deleted': bool(lixeira),
+                         'cpf': format_cpf(cpf)})
+    return Response({
+        'found': True, 'visible': True, 'deleted': bool(lixeira),
+        'cpf': format_cpf(cpf),
+        'user': serialize_user(achado, perms),
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def user_create(request):
