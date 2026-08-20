@@ -641,12 +641,22 @@ def user_update(request, pk):
 
     data = request.data
     if has_any_perm(request.user, 'manage_users', 'users_edit') or is_agency_admin_edit:
-        # CPF: cobrado quando se edita o CADASTRO da pessoa (nome, e-mail ou o
-        # próprio CPF) — é assim que as contas antigas, que nasceram sem ele,
-        # vão ficando identificadas, sem travar ninguém de uma vez. Uma ação
-        # pontual (bloquear, trocar o cargo, mexer em permissão) não é edição de
-        # cadastro e passa direto: senão bastaria um usuário sem CPF para o
-        # botão de bloquear parar de funcionar.
+        # ── CPF ───────────────────────────────────────────────────────────────
+        # É a IDENTIDADE da pessoa, então é campo FIXO: uma vez gravado, não
+        # muda. Um CPF que se pode trocar não identifica ninguém — bastaria
+        # editá-lo para uma conta virar outra pessoa, levando junto todo o
+        # histórico dela.
+        #
+        # Só é COBRADO quando se edita o CADASTRO (nome, e-mail ou o próprio
+        # CPF) — é assim que as contas antigas, que nasceram sem ele, vão
+        # ficando identificadas, sem travar ninguém de uma vez. Uma ação pontual
+        # (bloquear, trocar o cargo, mexer em permissão) passa direto: senão
+        # bastaria um usuário sem CPF para o botão de bloquear parar de
+        # funcionar.
+        #
+        # A única porta é o superusuário CORRIGIR um CPF digitado errado, e
+        # ainda assim de propósito (`cpf_corrigir: true`) — sem isso, o erro de
+        # digitação só se resolveria apagando a conta e perdendo o histórico.
         perms_atual = get_user_permissions(user)
         editando_cadastro = any(k in data for k in ('cpf', 'email', 'first_name', 'last_name'))
         if 'cpf' in data or (editando_cadastro and not perms_atual.cpf):
@@ -654,6 +664,19 @@ def user_update(request, pk):
             if not cpf:
                 return Response({'error': erro_cpf or 'CPF é obrigatório.'}, status=400)
             if cpf != perms_atual.cpf:
+                if perms_atual.cpf:
+                    if not (request.user.is_superuser and data.get('cpf_corrigir')):
+                        return Response({'error': (
+                            'O CPF identifica a pessoa e não pode ser alterado. '
+                            'Se foi digitado errado, um superusuário corrige pela opção '
+                            '“Corrigir CPF”.')}, status=400)
+                    from audit.tracking import log_event
+                    anterior = perms_atual.cpf
+                    log_event('update', model_name='UserPermissions', model_label='Usuário',
+                              object_id=user.id,
+                              object_repr=f'{user.first_name} {user.last_name}'.strip() or user.email or user.username,
+                              changes={'cpf': {'antes': format_cpf(anterior), 'depois': format_cpf(cpf)}},
+                              user=request.user)
                 conflito = erro_de_cpf_repetido(cpf, excluir_user_id=user.pk)
                 if conflito:
                     return conflito

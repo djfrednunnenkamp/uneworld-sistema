@@ -704,3 +704,64 @@ class LookupPorCpfTest(APITestCase):
         zé = make_user('zedasilva')
         self.client.force_authenticate(zé)
         self.assertEqual(self.client.get('/api/users/lookup-cpf/', {'cpf': self.CPF_A}).status_code, 403)
+
+
+class CpfEhCampoFixoTest(APITestCase):
+    """O CPF é a identidade da pessoa: uma vez gravado, não muda. Um CPF que se
+    pode trocar não identifica ninguém — bastaria editá-lo para uma conta virar
+    outra pessoa, levando junto o histórico dela."""
+
+    CPF_A = '529.982.247-25'
+    CPF_B = '111.444.777-35'
+
+    def setUp(self):
+        self.admin = make_user('fixoadmin', superuser=True)
+        self.gestor = make_user('fixogestor', manage_users=True)
+        self.client.force_authenticate(self.admin)
+        r = self.client.post('/api/users/create/',
+                             {'email': 'fixo@x.com', 'first_name': 'Fixo', 'cpf': self.CPF_A}, format='json')
+        self.alvo = r.data['id']
+
+    def test_gestor_nao_troca_o_cpf(self):
+        self.client.force_authenticate(self.gestor)
+        r = self.client.patch(f'/api/users/{self.alvo}/', {'cpf': self.CPF_B}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('não pode ser alterado', r.data['error'])
+        self.assertEqual(UserPermissions.objects.get(user_id=self.alvo).cpf, '52998224725')
+
+    def test_nem_o_superusuario_troca_sem_pedir_correcao(self):
+        r = self.client.patch(f'/api/users/{self.alvo}/', {'cpf': self.CPF_B}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(UserPermissions.objects.get(user_id=self.alvo).cpf, '52998224725')
+
+    def test_mandar_o_mesmo_cpf_nao_e_alteracao(self):
+        """Salvar o formulário sem mexer no CPF tem de continuar funcionando."""
+        r = self.client.patch(f'/api/users/{self.alvo}/',
+                              {'cpf': '52998224725', 'first_name': 'Outro'}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['first_name'], 'Outro')
+
+    def test_superusuario_corrige_digitacao_e_fica_no_log(self):
+        from audit.models import AuditLog
+        r = self.client.patch(f'/api/users/{self.alvo}/',
+                              {'cpf': self.CPF_B, 'cpf_corrigir': True}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['cpf'], self.CPF_B)
+        self.assertTrue(AuditLog.objects.filter(model_name='UserPermissions',
+                                                changes__cpf__isnull=False).exists())
+
+    def test_correcao_nao_pode_roubar_o_cpf_de_outro(self):
+        self.client.post('/api/users/create/',
+                         {'email': 'dono@x.com', 'first_name': 'Dono', 'cpf': self.CPF_B}, format='json')
+        r = self.client.patch(f'/api/users/{self.alvo}/',
+                              {'cpf': self.CPF_B, 'cpf_corrigir': True}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(UserPermissions.objects.get(user_id=self.alvo).cpf, '52998224725')
+
+    def test_conta_antiga_sem_cpf_ainda_aceita_o_primeiro(self):
+        """Fixo significa 'não muda depois de gravado', não 'nunca se preenche'."""
+        antigo = make_user('semcpffixo')
+        r = self.client.patch(f'/api/users/{antigo.id}/',
+                              {'first_name': 'Nome', 'cpf': self.CPF_B}, format='json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['cpf'], self.CPF_B)
